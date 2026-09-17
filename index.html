@@ -292,10 +292,13 @@
           shots.splice(i,1); continue;
         }
       } else {
-        for(var k2=0;k2<EN.length;k2++){ var o2=EN[k2];
-          if(o2.alive && Math.hypot(o2.x-s.x,o2.y-s.y)<7){
+        /* a round can only kill a jet assigned to the aircraft that fired it, so the split
+           stays three each - stray hits used to credit whoever was shooting and it came out 5/3/1 */
+        var own4=FR[s.own];
+        for(var qi2=0;qi2<own4.queue.length;qi2++){ var k2=own4.queue[qi2], o2=EN[k2];
+          if(o2 && o2.alive && Math.hypot(o2.x-s.x,o2.y-s.y)<7){
             o2.alive=false; boom(o2.x,o2.y,true);
-            var o3=FR[s.own]; o3.kills++; var qi=o3.queue.indexOf(k2); if(qi>=0) o3.queue.splice(qi,1);
+            own4.kills++; own4.queue.splice(qi2,1);
             s.life=-1; break; }
         }
       }
