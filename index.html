@@ -62,16 +62,27 @@
     text-transform:uppercase;font-weight:500;line-height:1.45}
   .aspect p{margin:0;color:var(--muted);font-size:clamp(12.5px,1.4vw,14px);line-height:1.75}
 
-  .film{padding:clamp(48px,7vw,96px) clamp(20px,4vw,48px) clamp(56px,8vw,112px)}
-  .film .frame{max-width:1180px;margin:0 auto;border:1px solid var(--line);background:#000}
-  .film video{display:block;width:100%;height:auto}
-  .film .cap{max-width:1180px;margin:clamp(14px,1.8vw,20px) auto 0;color:var(--muted);
-    font-size:10px;letter-spacing:.3em;text-transform:uppercase;text-align:center}
+  /* full-screen film, autoplaying, with a line over the middle. 17 Sept 2026 */
+  .film{position:relative;height:100svh;min-height:520px;overflow:hidden;
+    border-top:1px solid var(--line)}
+  .film video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .film .scrim{position:absolute;inset:0;background:
+     linear-gradient(180deg,rgba(13,15,16,.30) 0%,rgba(13,15,16,.48) 50%,rgba(13,15,16,.30) 100%)}
+  .film .over{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    padding:0 clamp(20px,5vw,64px);text-align:center;pointer-events:none}
+  .film .over p{margin:0;max-width:24ch;font-size:clamp(20px,3.4vw,44px);letter-spacing:.14em;
+    line-height:1.35;text-transform:uppercase;font-weight:500;
+    text-shadow:0 2px 24px rgba(0,0,0,.8)}
 
   @media (max-width:760px){
     .aspects{grid-template-columns:1fr}
     .band h1{letter-spacing:.14em}
   }
+
+  /* each numeral is its own element so it can fly in on load */
+  .wordmark .g{display:inline-block;will-change:transform}
+  .wordmark.flying .g{opacity:0}
+  @media (prefers-reduced-motion:reduce){ .wordmark.flying .g{opacity:1} }
   .contact a:hover{border-bottom-color:var(--paper)}
 </style>
 </head>
@@ -80,7 +91,7 @@
     <video autoplay muted loop playsinline preload="metadata" src="hero.mp4"></video>
     <div class="scrim"></div>
     <img class="mark" src="logo-white.png" alt="144">
-    <div class="wordmark">144</div>
+    <div class="wordmark" id="wm" aria-label="144"><span class="g">1</span><span class="g">4</span><span class="g">4</span></div>
   </div>
 
 
@@ -113,10 +124,9 @@
   </section>
 
   <section class="film">
-    <div class="frame">
-      <video controls preload="metadata" playsinline poster="film-poster.jpg" src="film.mp4"></video>
-    </div>
-    <p class="cap">Deployment</p>
+    <video autoplay muted loop playsinline preload="metadata" poster="film-poster.jpg" src="film.mp4"></video>
+    <div class="scrim"></div>
+    <div class="over"><p>PLACEHOLDER LINE OVER THE FILM</p></div>
   </section>
 
   <section class="contact">
@@ -127,6 +137,46 @@
     <p class="ref">Psalm 144:1</p>
     <p class="words">Blessed be the LORD, my rock, who trains my hands for war, and my fingers for battle.</p>
   </footer>
+
+<script>
+/* 17 Sept 2026: on load the 1, the 4 and the 4 come in from three different places, dogfight for
+   about eight seconds, then settle into their normal position under the logo. Web Animations API,
+   so every glyph finishes at transform:none - the resting layout is the CSS, not the script. */
+(function(){
+  var wm = document.getElementById('wm');
+  if (!wm) return;
+  var gs = wm.querySelectorAll('.g');
+  if (!gs.length) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  var vw = Math.max(window.innerWidth, 320), vh = Math.max(window.innerHeight, 480);
+  wm.classList.add('flying');
+
+  // three entry corners, then a set of darting waypoints each, then home
+  var routes = [
+    [[-vw*0.55,-vh*0.42,-22,.55],[ vw*0.20,-vh*0.30, 16,.8],[-vw*0.26, vh*0.16,-14,1],
+     [ vw*0.12,-vh*0.10, 10,1],[-vw*0.06, vh*0.05, -6,1]],
+    [[ vw*0.60,-vh*0.30, 26,.55],[-vw*0.22, vh*0.24,-20,.85],[ vw*0.24,-vh*0.18, 14,1],
+     [-vw*0.10, vh*0.08, -8,1],[ vw*0.05,-vh*0.04,  5,1]],
+    [[ 0, vh*0.62, -30,.55],[ vw*0.28, vh*0.10, 22,.85],[-vw*0.30,-vh*0.20,-16,1],
+     [ vw*0.08, vh*0.12,  9,1],[-vw*0.04,-vh*0.05, -5,1]]
+  ];
+
+  gs.forEach(function(g, i){
+    var r = routes[i % routes.length];
+    var frames = [{transform:'translate('+r[0][0]+'px,'+r[0][1]+'px) rotate('+r[0][2]+'deg) scale('+r[0][3]+')', opacity:0, offset:0},
+                  {opacity:1, offset:0.06}];
+    r.forEach(function(p, n){
+      frames.push({transform:'translate('+p[0]+'px,'+p[1]+'px) rotate('+p[2]+'deg) scale('+p[3]+')',
+                   opacity:1, offset:0.10 + n*0.17});
+    });
+    frames.push({transform:'translate(0,0) rotate(0deg) scale(1)', opacity:1, offset:1});
+    var a = g.animate(frames, {duration:8000, delay:i*140, easing:'cubic-bezier(.36,.06,.24,1)', fill:'both'});
+    a.finished.then(function(){ g.style.transform=''; g.style.opacity=''; wm.classList.remove('flying'); })
+             .catch(function(){ wm.classList.remove('flying'); });
+  });
+})();
+</script>
 </body>
 </html>
 
