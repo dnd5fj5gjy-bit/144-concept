@@ -216,7 +216,8 @@
                       : ((Math.floor(e/COLS)+0.5)/ROWS);
     EN.push({x:box.x0+ (W-2*M)*((e%COLS)+0.5)/COLS + (Math.random()-0.5)*90,
              y:box.y0+ (box.y1-box.y0)*fy + (Math.random()-0.5)*50,
-             a:Math.random()*6.283, v:(250+Math.random()*110)*S, alive:true, turn:2.6+Math.random()*0.9});
+             a:Math.random()*6.283, v:(250+Math.random()*110)*S, alive:true, hp:3,
+             turn:3.0+Math.random()*1.0});
   }
   /* three friendlies, PER kills each: friendly i owns enemies i*PER .. i*PER+PER-1 */
   FR=gs.map(function(g,i){
@@ -256,7 +257,7 @@
         var inc=null, id=1e9;
         shots.forEach(function(sh){ if(sh.trk!==undefined && EN[sh.trk]===o){ var dd=Math.hypot(sh.x-o.x,sh.y-o.y); if(dd<id){id=dd;inc=sh;} } });
         if(inc && id<230) want = Math.atan2(o.y-inc.y, o.x-inc.x) + 1.15;      /* break across the seeker */
-        else if(near && nd<230) want = Math.atan2(o.y-near.y,o.x-near.x) + Math.sin(ts/260+o.v)*0.9;
+        else if(near && nd<310) want = Math.atan2(o.y-near.y,o.x-near.x) + Math.sin(ts/260+o.v)*0.9;
         else want = o.a + Math.sin(ts/380+o.v)*1.1;
       }
       var tu=wrap(want-o.a), r=o.turn*dt;
@@ -297,7 +298,7 @@
         if(f.burst>0){ f.burst-=dt; if(f.burst%0.055<dt) shots.push({x:f.x,y:f.y,a:f.a+(Math.random()-0.5)*0.16,v:1250*S,life:0.5,gun:true,own:f.i}); }
         else if(f.gun<=0 && aim<0.055 && d<190*S){ f.burst=0.30; f.gun=2.4+Math.random()*1.6; }
         f.mis-=dt;
-        if(f.mis<=0 && d>130*S && d<620*S){ shots.push({x:f.x,y:f.y,a:f.a,v:600*S,life:2.1,trk:f.queue[0],turn:1.9,own:f.i,v2:600*S}); f.mis=4.4+Math.random()*2.6; }
+        if(f.mis<=0 && d>130*S && d<620*S){ shots.push({x:f.x,y:f.y,a:f.a,v:600*S,life:2.1,trk:f.queue[0],turn:1.55,own:f.i,v2:600*S}); f.mis=4.4+Math.random()*2.6; }
       }
       f.g.style.transform='translate('+(f.x-home[f.i].x)+'px,'+(f.y-home[f.i].y)+'px) rotate('+(f.a+f.bank)+'rad)';
     });
@@ -320,8 +321,13 @@
         var own4=FR[s.own];
         for(var qi2=0;qi2<own4.queue.length;qi2++){ var k2=own4.queue[qi2], o2=EN[k2];
           if(o2 && o2.alive && Math.hypot(o2.x-s.x,o2.y-s.y)<7/Math.max(S,0.5)){
-            o2.alive=false; boom(o2.x,o2.y,true);
-            own4.kills++; own4.queue.splice(qi2,1);
+            /* 17 Sept: cutting to three enemies collapsed the fight to under two seconds because
+               each numeral killed on its first pass. A jet now takes three gun hits, so the kill
+               is earned and the chase survives the smaller count. A missile still kills outright -
+               a big explosion followed by the jet flying on would read as a bug. */
+            o2.hp-=1; boom(s.x,s.y,false);
+            if(o2.hp<=0){ o2.alive=false; boom(o2.x,o2.y,true);
+                          own4.kills++; own4.queue.splice(qi2,1); }
             s.life=-1; break; }
         }
       }
