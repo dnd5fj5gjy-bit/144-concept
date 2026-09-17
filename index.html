@@ -216,7 +216,7 @@
                       : ((Math.floor(e/COLS)+0.5)/ROWS);
     EN.push({x:box.x0+ (W-2*M)*((e%COLS)+0.5)/COLS + (Math.random()-0.5)*90,
              y:box.y0+ (box.y1-box.y0)*fy + (Math.random()-0.5)*50,
-             a:Math.random()*6.283, v:(250+Math.random()*110)*S, alive:true, hp:3,
+             a:Math.random()*6.283, v:(250+Math.random()*110)*S, alive:true, hp:3, ihit:0,
              turn:3.0+Math.random()*1.0});
   }
   /* three friendlies, PER kills each: friendly i owns enemies i*PER .. i*PER+PER-1 */
@@ -253,6 +253,7 @@
     /* enemies evade and hold station */
     EN.forEach(function(o){
       if(!o.alive) return;
+      if(o.ihit>0) o.ihit-=dt;   /* see the gun-hit block: one hit per burst, not three */
       var want=edgeSteer(o);
       if(want===null){
         var near=null,nd=1e9;
@@ -326,9 +327,12 @@
           if(o2 && o2.alive && Math.hypot(o2.x-s.x,o2.y-s.y)<7/Math.max(S,0.5)){
             /* 17 Sept: cutting to three enemies collapsed the fight to under two seconds because
                each numeral killed on its first pass. A jet now takes three gun hits, so the kill
-               is earned and the chase survives the smaller count. A missile still kills outright -
+               is earned and the chase survives the smaller count. One BURST can only score one
+               hit (ihit), or a single 0.30s burst landed all three and the fight ended at 2s.
+               A missile still kills outright -
                a big explosion followed by the jet flying on would read as a bug. */
-            o2.hp-=1; boom(s.x,s.y,false);
+            if(o2.ihit>0){ s.life=-1; break; }   /* already hit this burst */
+            o2.hp-=1; o2.ihit=0.7; boom(s.x,s.y,false);
             if(o2.hp<=0){ o2.alive=false; boom(o2.x,o2.y,true);
                           own4.kills++; own4.queue.splice(qi2,1); }
             s.life=-1; break; }
