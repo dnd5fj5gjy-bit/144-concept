@@ -194,17 +194,19 @@
     return null;
   }
 
-  /* nine enemies, spread across the band, each with its own drift */
-  for(var e=0;e<9;e++){
-    EN.push({x:box.x0+ (W-2*M)*((e%3)+0.5)/3 + (Math.random()-0.5)*90,
-             y:box.y0+ (box.y1-box.y0)*(Math.floor(e/3)+0.5)/3 + (Math.random()-0.5)*50,
+  /* 17 Sept, his call: SIX enemies, two kills each. Kept as N_EN/PER so the next change is a number
+     and not a rewrite - the 9/3 version had the counts hardcoded in four separate places. */
+  var N_EN=6, PER=N_EN/3, COLS=3, ROWS=Math.ceil(N_EN/COLS);
+  for(var e=0;e<N_EN;e++){
+    EN.push({x:box.x0+ (W-2*M)*((e%COLS)+0.5)/COLS + (Math.random()-0.5)*90,
+             y:box.y0+ (box.y1-box.y0)*(Math.floor(e/COLS)+0.5)/ROWS + (Math.random()-0.5)*50,
              a:Math.random()*6.283, v:(250+Math.random()*110)*S, alive:true, turn:2.6+Math.random()*0.9});
   }
   /* three friendlies, three kills each: friendly i owns enemies i*3..i*3+2 */
   FR=gs.map(function(g,i){
     var st=[{x:box.x0+10,y:box.y1-20,a:-0.6},{x:box.x1-10,y:box.y1-40,a:Math.PI+0.6},{x:W*0.5,y:box.y1-10,a:-Math.PI/2}][i];
     return {g:g,i:i,x:st.x,y:st.y,a:st.a,v:470*S,bank:0,kills:0,
-            queue:[i*3,i*3+1,i*3+2], gun:1.6+i*0.5, burst:0, mis:2.6+i*1.1, land:null};
+            queue:Array.from({length:PER},function(_,n){return i*PER+n;}), gun:1.6+i*0.5, burst:0, mis:2.6+i*1.1, land:null};
   });
   function target(f){ while(f.queue.length && !EN[f.queue[0]].alive) f.queue.shift(); return f.queue.length?EN[f.queue[0]]:null; }
 
