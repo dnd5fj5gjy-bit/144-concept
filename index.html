@@ -81,8 +81,13 @@
   .film .over{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     padding:0 clamp(20px,5vw,64px);text-align:center;pointer-events:none}
   .film .over p{margin:0;max-width:24ch;font-size:clamp(20px,3.4vw,44px);letter-spacing:.14em;
-    line-height:1.35;text-transform:uppercase;font-weight:500;
+    line-height:1.22;text-transform:uppercase;font-weight:500;
     text-shadow:0 2px 24px rgba(0,0,0,.8)}
+  /* three stacked lines, his call 17 Sept. Each phrase is its own block so the break is fixed
+     rather than left to wrapping, which would move with the viewport. Full stops dropped: the
+     line break does that work now and trailing dots on stacked display type read as debris. */
+  .film .over p span{display:block}
+  .film .over p span+span{margin-top:.12em}
 
   @media (max-width:760px){
     .aspects{grid-template-columns:1fr}
@@ -144,7 +149,7 @@
   <section class="film">
     <video autoplay muted loop playsinline preload="metadata" poster="film-poster.jpg" src="film.mp4"></video>
     <div class="scrim"></div>
-    <div class="over"><p>Off grid. Under the radar. For longer.</p></div>
+    <div class="over"><p><span>Off-grid</span><span>Under the radar</span><span>For longer</span></p></div>
   </section>
 
   <section class="contact">
@@ -216,7 +221,7 @@
                       : ((Math.floor(e/COLS)+0.5)/ROWS);
     EN.push({x:box.x0+ (W-2*M)*((e%COLS)+0.5)/COLS + (Math.random()-0.5)*90,
              y:box.y0+ (box.y1-box.y0)*fy + (Math.random()-0.5)*50,
-             a:Math.random()*6.283, v:(250+Math.random()*110)*S, alive:true, hp:3, ihit:0,
+             a:Math.random()*6.283, v:(250+Math.random()*110)*S, alive:true, hp:2, ihit:0,
              turn:3.0+Math.random()*1.0});
   }
   /* three friendlies, PER kills each: friendly i owns enemies i*PER .. i*PER+PER-1 */
@@ -247,7 +252,13 @@
     ctx.clearRect(0,0,W,H);
     var aliveCount=EN.filter(function(o){return o.alive;}).length;
 
-    if(mode==='fight' && (aliveCount===0 || el>MAX_MS)){ mode='land'; landStart=ts; shots.length=0;
+    if(mode==='fight' && (aliveCount===0 || el>MAX_MS)){
+      /* If the cap is ever hit, any survivor is destroyed here and credited. Without this the
+         numerals came in to land while live jets kept circling, which breaks the sequence he
+         asked for: everything destroyed FIRST, then they land. */
+      if(el>MAX_MS){ EN.forEach(function(o,k){ if(!o.alive) return; o.alive=false; boom(o.x,o.y,true);
+        FR.forEach(function(f){ var qi=f.queue.indexOf(k); if(qi>=0){ f.kills++; f.queue.splice(qi,1); } }); }); }
+      mode='land'; landStart=ts; shots.length=0;
       FR.forEach(function(f){ f.land={x0:f.x,y0:f.y,a0:f.a+f.bank}; }); }
 
     /* enemies evade and hold station */
@@ -326,9 +337,10 @@
         for(var qi2=0;qi2<own4.queue.length;qi2++){ var k2=own4.queue[qi2], o2=EN[k2];
           if(o2 && o2.alive && Math.hypot(o2.x-s.x,o2.y-s.y)<7/Math.max(S,0.5)){
             /* 17 Sept: cutting to three enemies collapsed the fight to under two seconds because
-               each numeral killed on its first pass. A jet now takes three gun hits, so the kill
+               each numeral killed on its first pass. A jet now takes TWO gun hits, so the kill
                is earned and the chase survives the smaller count. One BURST can only score one
-               hit (ihit), or a single 0.30s burst landed all three and the fight ended at 2s.
+               hit (ihit), or one 0.30s burst landed every hit and the fight ended at 2s.
+               Three hits plus that limit overshot to 25.8s, near the cap, hence two.
                A missile still kills outright -
                a big explosion followed by the jet flying on would read as a bug. */
             if(o2.ihit>0){ s.life=-1; break; }   /* already hit this burst */
