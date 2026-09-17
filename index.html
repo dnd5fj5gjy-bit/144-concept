@@ -148,169 +148,143 @@
 
 
 <script>
-/* 17 Sept 2026, his brief: the 1, the 4 and the 4 come in from all sides, chase and separate high up
-   above the logo, fire bullets and tracking missiles that miss and explode, then settle under the
-   logo. Longer than eight seconds is fine - he asked for a proper dogfight.
+/* 17 Sept 2026, second brief: the numerals fly at the SAME SIZE they end at, the flying is closer to
+   real fighters, there is machine gun fire and larger missiles that detonate ON SCREEN, and the whole
+   thing is faster.
 
-   Architecture: the three numerals stay DOM elements, so the typography and the RESTING position are
-   the stylesheet's, not the script's - the settle animates to each glyph's real measured rect and
-   then clears itself. Ordnance and explosions are canvas, so firing costs no DOM churn. */
+   Flight model, in the order it matters:
+     - LEAD PURSUIT. Aim where the target will be, not where it is, so the curves look intentional.
+     - ENERGY. A hard turn bleeds speed and the nose-down recovery gets it back, which is what stops
+       the paths looking like constant-radius circles.
+     - BREAK. Inside knife-fight range they roll hard away instead of merging, then re-engage.
+   Glyphs stay DOM at scale 1 so the size never changes and the resting layout stays the stylesheet's.
+   Guns and missiles are canvas. */
 (function(){
-  var wm = document.getElementById('wm'), hero = document.querySelector('.hero'),
-      cv = document.getElementById('dogfight');
-  if (!wm || !hero || !cv) return;
-  var gs = [].slice.call(wm.querySelectorAll('.g'));
-  if (gs.length !== 3) return;
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var wm=document.getElementById('wm'), hero=document.querySelector('.hero'), cv=document.getElementById('dogfight');
+  if(!wm||!hero||!cv) return;
+  var gs=[].slice.call(wm.querySelectorAll('.g'));
+  if(gs.length!==3) return;
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-  var FIGHT_MS = 15000, FORM_MS = 2000, FIGHT_SCALE = 2.1, ctx = cv.getContext('2d'), dpr = 1;
-  var W = 0, H = 0, home = [], fighters = [], shots = [], booms = [];
+  var FIGHT_MS=13000, FORM_MS=1500, ctx=cv.getContext('2d');
+  var W=0,H=0,home=[],F=[],shots=[],booms=[];
 
-  function sizeCanvas(){
-    var r = hero.getBoundingClientRect();
-    W = r.width; H = r.height;
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
-    cv.width = W * dpr; cv.height = H * dpr;
-    cv.style.width = W + 'px'; cv.style.height = H + 'px';
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-  }
+  function size(){ var r=hero.getBoundingClientRect(); W=r.width; H=r.height;
+    var d=Math.min(window.devicePixelRatio||1,2);
+    cv.width=W*d; cv.height=H*d; cv.style.width=W+'px'; cv.style.height=H+'px'; ctx.setTransform(d,0,0,d,0,0); }
+  function measure(){ var hr=hero.getBoundingClientRect();
+    home=gs.map(function(g){ var r=g.getBoundingClientRect();
+      return {x:r.left-hr.left+r.width/2, y:r.top-hr.top+r.height/2}; }); }
+  function place(g,i,x,y,rot){ var h=home[i];
+    g.style.transform='translate('+(x-h.x)+'px,'+(y-h.y)+'px) rotate('+rot+'rad)'; }
+  size(); measure();
 
-  /* each glyph's resting centre, in hero coordinates, measured BEFORE anything moves */
-  function measure(){
-    var hr = hero.getBoundingClientRect();
-    home = gs.map(function(g){
-      var r = g.getBoundingClientRect();
-      return {x: r.left - hr.left + r.width/2, y: r.top - hr.top + r.height/2};
-    });
-  }
+  var box={x0:W*0.08,x1:W*0.92,y0:H*0.05,y1:H*0.44};
+  var VMIN=340, VMAX=560, TURN=3.6;
 
-  function place(g, i, x, y, rot, sc){
-    var h = home[i];
-    g.style.transform = 'translate(' + (x-h.x) + 'px,' + (y-h.y) + 'px) rotate(' + rot + 'rad) scale(' + sc + ')';
-  }
-
-  sizeCanvas(); measure();
-
-  /* the fight happens HIGH: a band above the logo, upper-middle of the hero */
-  var box = {x0: W*0.10, x1: W*0.90, y0: H*0.06, y1: H*0.46};
-
-  /* in from all different sides */
-  var entries = [
-    {x: -W*0.15,      y: H*0.10, a: 0.35},
-    {x: W*1.15,       y: H*0.34, a: Math.PI - 0.30},
-    {x: W*0.52,       y: -H*0.20, a: Math.PI/2 + 0.15}
-  ];
-  fighters = gs.map(function(g,i){
-    var e = entries[i];
-    return {g:g, i:i, x:e.x, y:e.y, a:e.a, v: 300 + i*28, bank:0,
-            cool: 0.7 + i*0.5, mcool: 2.2 + i*1.7, target: (i+1)%3, swap: 2.4 + i*1.1};
+  F=gs.map(function(g,i){
+    var e=[{x:-W*0.18,y:H*0.10,a:0.30},{x:W*1.18,y:H*0.30,a:Math.PI-0.26},{x:W*0.50,y:-H*0.24,a:Math.PI/2}][i];
+    return {g:g,i:i,x:e.x,y:e.y,a:e.a,v:VMAX,bank:0,tgt:(i+1)%3,swap:2.0+i*0.9,
+            burst:0,gun:0.5+i*0.3,mis:2.8+i*1.6};
   });
+  function wrap(d){ while(d>Math.PI)d-=6.283185; while(d<-Math.PI)d+=6.283185; return d; }
+  function boom(x,y,big){ booms.push({x:x,y:y,max:big?150:52,life:big?0.75:0.34,t:0,big:big}); }
 
-  function wrapAngle(d){ while(d> Math.PI) d-=2*Math.PI; while(d<-Math.PI) d+=2*Math.PI; return d; }
+  var t0=null, phase='fight', from=null;
 
-  function fire(f, tracking){
-    var t = fighters[f.target];
-    shots.push({x:f.x, y:f.y, a:f.a, v: tracking? 430 : 920, life: tracking? 2.4 : 1.0,
-                track: tracking, target: f.target, turn: tracking? 1.9 : 0, w: tracking? 3.6 : 2.6});
-  }
-  function boom(x,y,big){ booms.push({x:x,y:y,r: big?8:4, max: big?104:46, life: big?0.7:0.42, t:0}); }
-
-  var t0 = null, phase = 'fight', formFrom = null;
-
-  function step(ts){
-    if (t0 === null) t0 = ts;
-    var el = ts - t0, dt = 1/60;
+  function frame(ts){
+    if(t0===null) t0=ts;
+    var el=ts-t0, dt=1/60;
     ctx.clearRect(0,0,W,H);
 
-    if (phase === 'fight'){
-      fighters.forEach(function(f){
-        f.swap -= dt;
-        if (f.swap <= 0){ f.target = (f.target + 1 + Math.floor(Math.random()*2)) % 3;
-                          if (f.target === f.i) f.target = (f.i+1)%3; f.swap = 1.8 + Math.random()*2.2; }
-        var t = fighters[f.target];
-        /* pursue, but break off when very close so they chase and SEPARATE */
-        var dx = t.x - f.x, dy = t.y - f.y, d = Math.hypot(dx,dy);
-        var want = Math.atan2(dy,dx);
-        if (d < 120) want += Math.PI * 0.75;            /* break away */
-        /* stay inside the high band */
-        if (f.x < box.x0) want = 0; if (f.x > box.x1) want = Math.PI;
-        if (f.y < box.y0) want = Math.PI/2; if (f.y > box.y1) want = -Math.PI/2;
-        var turn = wrapAngle(want - f.a);
-        var rate = 2.6 * dt;
-        f.a += Math.max(-rate, Math.min(rate, turn));
-        f.bank = Math.max(-0.6, Math.min(0.6, turn)) * 0.8;
-        f.x += Math.cos(f.a) * f.v * dt;
-        f.y += Math.sin(f.a) * f.v * dt;
+    if(phase==='fight'){
+      F.forEach(function(f){
+        var t=F[f.tgt];
+        f.swap-=dt;
+        if(f.swap<=0){ var n=(f.i+1+Math.floor(Math.random()*2))%3; f.tgt=(n===f.i)?(f.i+1)%3:n; f.swap=1.5+Math.random()*1.8; }
+        t=F[f.tgt];
+        var dx=t.x-f.x, dy=t.y-f.y, d=Math.hypot(dx,dy)||1;
+        /* lead pursuit: aim where he will be */
+        var lead=Math.min(0.55, d/(f.v*1.6));
+        var ax=t.x+Math.cos(t.a)*t.v*lead, ay=t.y+Math.sin(t.a)*t.v*lead;
+        var want=Math.atan2(ay-f.y, ax-f.x);
+        if(d<150) want=Math.atan2(f.y-t.y, f.x-t.x) + 0.5;   /* break away, rolling off */
+        if(f.x<box.x0) want=0; if(f.x>box.x1) want=Math.PI;
+        if(f.y<box.y0) want=Math.PI/2; if(f.y>box.y1) want=-Math.PI/2;
+        var turn=wrap(want-f.a), rate=TURN*dt*(0.5+0.5*(f.v/VMAX));
+        var applied=Math.max(-rate,Math.min(rate,turn));
+        f.a+=applied;
+        /* energy: hard turns bleed speed, straight flight builds it back */
+        var hard=Math.abs(applied)/rate;
+        f.v += (hard>0.75 ? -420 : 300)*dt;
+        f.v = Math.max(VMIN, Math.min(VMAX, f.v));
+        f.bank = Math.max(-0.75, Math.min(0.75, turn*1.1));
+        f.x+=Math.cos(f.a)*f.v*dt; f.y+=Math.sin(f.a)*f.v*dt;
 
-        f.cool -= dt; f.mcool -= dt;
-        var aim = Math.abs(wrapAngle(Math.atan2(dy,dx) - f.a));
-        if (f.cool <= 0 && aim < 0.24 && d < 420){ fire(f,false); f.cool = 0.16; }
-        if (f.mcool <= 0 && d < 560){ fire(f,true); f.mcool = 3.4 + Math.random()*2.5; }
+        /* GUNS: short bursts, only with a firing solution */
+        var aim=Math.abs(wrap(Math.atan2(dy,dx)-f.a));
+        f.gun-=dt;
+        if(f.burst>0){ f.burst-=dt;
+          if(f.burst%0.055 < dt){ shots.push({x:f.x,y:f.y,a:f.a+(Math.random()-0.5)*0.05,v:1500,life:0.55,gun:true}); }
+        } else if(f.gun<=0 && aim<0.20 && d<430){ f.burst=0.42; f.gun=1.5+Math.random(); }
 
-        place(f.g, f.i, f.x, f.y, f.a + f.bank, FIGHT_SCALE);
+        /* MISSILES: larger, and they detonate on screen */
+        f.mis-=dt;
+        if(f.mis<=0 && d<620 && d>140){ shots.push({x:f.x,y:f.y,a:f.a,v:560,life:2.6,trk:f.tgt,turn:1.7}); f.mis=3.6+Math.random()*2.2; }
+
+        place(f.g,f.i,f.x,f.y,f.a+f.bank);
       });
 
-      for (var i=shots.length-1;i>=0;i--){
-        var s = shots[i]; s.life -= dt;
-        if (s.track){
-          var tf = fighters[s.target];
-          var wa = Math.atan2(tf.y - s.y, tf.x - s.x);
-          var tu = wrapAngle(wa - s.a), r = s.turn * dt;
-          s.a += Math.max(-r, Math.min(r, tu));      /* limited turn, so it MISSES */
+      for(var i=shots.length-1;i>=0;i--){
+        var s=shots[i]; s.life-=dt;
+        if(s.trk!==undefined){
+          var tf=F[s.trk], wa=Math.atan2(tf.y-s.y,tf.x-s.x), tu=wrap(wa-s.a), r=s.turn*dt;
+          s.a+=Math.max(-r,Math.min(r,tu));
+          if(Math.hypot(tf.x-s.x,tf.y-s.y)<46){ boom(s.x,s.y,true); shots.splice(i,1); continue; }
         }
-        s.x += Math.cos(s.a)*s.v*dt; s.y += Math.sin(s.a)*s.v*dt;
-        if (s.life <= 0 || s.x<-60 || s.x>W+60 || s.y<-60 || s.y>H+60){
-          boom(s.x, s.y, s.track); shots.splice(i,1); continue;
+        s.x+=Math.cos(s.a)*s.v*dt; s.y+=Math.sin(s.a)*s.v*dt;
+        var out = s.x<-70||s.x>W+70||s.y<-70||s.y>H+70;
+        if(s.life<=0||out){ if(!out) boom(s.x,s.y,s.trk!==undefined); shots.splice(i,1); continue; }
+        if(s.gun){
+          ctx.globalAlpha=0.95; ctx.strokeStyle='#fff6e6'; ctx.lineWidth=2.4;
+          ctx.beginPath(); ctx.moveTo(s.x,s.y);
+          ctx.lineTo(s.x-Math.cos(s.a)*24, s.y-Math.sin(s.a)*24); ctx.stroke();
+        } else {
+          ctx.globalAlpha=0.28; ctx.strokeStyle='#ffd9a8'; ctx.lineWidth=3.0;
+          ctx.beginPath(); ctx.moveTo(s.x-Math.cos(s.a)*20,s.y-Math.sin(s.a)*20);
+          ctx.lineTo(s.x-Math.cos(s.a)*120,s.y-Math.sin(s.a)*120); ctx.stroke();
+          ctx.globalAlpha=1; ctx.strokeStyle='#fff1dd'; ctx.lineWidth=4.2;
+          ctx.beginPath(); ctx.moveTo(s.x,s.y);
+          ctx.lineTo(s.x-Math.cos(s.a)*20,s.y-Math.sin(s.a)*20); ctx.stroke();
         }
-        ctx.globalAlpha = s.track ? 0.95 : 0.8;
-        ctx.strokeStyle = s.track ? '#ffd9a8' : '#fff3e0';
-        ctx.lineWidth = s.w;
-        ctx.beginPath();
-        ctx.moveTo(s.x, s.y);
-        ctx.lineTo(s.x - Math.cos(s.a)*(s.track?26:20), s.y - Math.sin(s.a)*(s.track?26:20));
-        ctx.stroke();
-        if (s.track){ ctx.globalAlpha=0.30; ctx.lineWidth=2.2; ctx.beginPath();
-          ctx.moveTo(s.x - Math.cos(s.a)*26, s.y - Math.sin(s.a)*26);
-          ctx.lineTo(s.x - Math.cos(s.a)*88, s.y - Math.sin(s.a)*88); ctx.stroke(); }
       }
-
-      if (el > FIGHT_MS){ phase = 'form'; t0 = ts;
-        formFrom = fighters.map(function(f){ return {x:f.x,y:f.y,a:f.a+f.bank}; });
-        shots.length = 0;
-      }
-    } else if (phase === 'form'){
-      var k = Math.min(1, el / FORM_MS), e = 1 - Math.pow(1-k, 3);
-      var sc = FIGHT_SCALE + (1 - FIGHT_SCALE) * e;
-      fighters.forEach(function(f){
-        var a = formFrom[f.i], h = home[f.i];
-        place(f.g, f.i, a.x + (h.x-a.x)*e, a.y + (h.y-a.y)*e, a.a*(1-e), sc);
-      });
-      if (k >= 1){
-        gs.forEach(function(g){ g.style.transform=''; g.style.textShadow=''; });
-        cv.remove();
-        return;
-      }
+      if(el>FIGHT_MS){ phase='form'; t0=ts; shots.length=0;
+        from=F.map(function(f){return {x:f.x,y:f.y,a:f.a+f.bank};}); }
+    } else {
+      var k=Math.min(1,el/FORM_MS), e=1-Math.pow(1-k,3);
+      F.forEach(function(f){ var a=from[f.i], h=home[f.i];
+        place(f.g,f.i,a.x+(h.x-a.x)*e, a.y+(h.y-a.y)*e, a.a*(1-e)); });
+      if(k>=1){ gs.forEach(function(g){ g.style.transform=''; g.style.textShadow=''; }); cv.remove(); return; }
     }
 
-    for (var b=booms.length-1;b>=0;b--){
-      var o = booms[b]; o.t += dt;
-      var p = o.t / o.life;
-      if (p >= 1){ booms.splice(b,1); continue; }
-      ctx.globalAlpha = (1-p) * 0.9;
-      ctx.strokeStyle = '#ffd2a0'; ctx.lineWidth = 3.4*(1-p)+0.8;
-      ctx.beginPath(); ctx.arc(o.x, o.y, o.r + (o.max-o.r)*p, 0, 6.283); ctx.stroke();
-      ctx.globalAlpha = (1-p) * 0.5;
-      ctx.beginPath(); ctx.arc(o.x, o.y, (o.max*0.35)*(1-p), 0, 6.283);
-      ctx.fillStyle = '#fff1dd'; ctx.fill();
+    for(var b=booms.length-1;b>=0;b--){
+      var o=booms[b]; o.t+=dt; var pr=o.t/o.life;
+      if(pr>=1){ booms.splice(b,1); continue; }
+      if(o.big){ ctx.globalAlpha=(1-pr)*0.85; ctx.fillStyle='#fff4e2';
+        ctx.beginPath(); ctx.arc(o.x,o.y,(o.max*0.30)*(1-pr)+4,0,6.283); ctx.fill(); }
+      ctx.globalAlpha=(1-pr)*0.9; ctx.strokeStyle='#ffd2a0'; ctx.lineWidth=(o.big?5:2.6)*(1-pr)+0.8;
+      ctx.beginPath(); ctx.arc(o.x,o.y,o.max*pr,0,6.283); ctx.stroke();
+      if(o.big){ ctx.globalAlpha=(1-pr)*0.45; ctx.lineWidth=1.6;
+        ctx.beginPath(); ctx.arc(o.x,o.y,o.max*pr*0.6,0,6.283); ctx.stroke(); }
     }
-    ctx.globalAlpha = 1;
-    requestAnimationFrame(step);
+    ctx.globalAlpha=1;
+    requestAnimationFrame(frame);
   }
 
-  window.addEventListener('resize', function(){ sizeCanvas(); measure(); });
-  gs.forEach(function(g){ g.style.textShadow='0 0 20px rgba(0,0,0,.95), 0 2px 6px rgba(0,0,0,.9)'; });
-  fighters.forEach(function(f){ place(f.g, f.i, f.x, f.y, f.a, FIGHT_SCALE); });
-  requestAnimationFrame(step);
+  window.addEventListener('resize', function(){ size(); measure(); });
+  gs.forEach(function(g){ g.style.textShadow='0 0 16px rgba(0,0,0,.95), 0 2px 5px rgba(0,0,0,.9)'; });
+  F.forEach(function(f){ place(f.g,f.i,f.x,f.y,f.a); });
+  requestAnimationFrame(frame);
 })();
 </script>
 </body>
