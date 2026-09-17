@@ -177,15 +177,20 @@
       return {x:r.left-hr.left+r.width/2, y:r.top-hr.top+r.height/2}; }); }
   size(); measure();
 
-  var M=46, box={x0:M,x1:W-M,y0:M*0.7,y1:H*0.60};
+  /* 17 Sept: absolute edge margins swamped a 390px screen - the middle was only 210px wide, so
+     edge steering overrode pursuit and mobile took 31s against desktop's 13s. Everything spatial
+     is now proportional to the viewport. */
+  var S=Math.max(0.42, Math.min(1, Math.min(W/1440, H/900)));
+  var M=46*S, box={x0:M,x1:W-M,y0:M*0.7,y1:H*0.60};
+  var EDGE_X=Math.min(90, W*0.09), EDGE_Y=Math.min(70, H*0.08);
   function clamp(o){ o.x=Math.max(box.x0,Math.min(box.x1,o.x)); o.y=Math.max(box.y0,Math.min(box.y1,o.y)); }
   function wrap(d){ while(d>Math.PI)d-=6.283185; while(d<-Math.PI)d+=6.283185; return d; }
   function boom(x,y,big){ booms.push({x:x,y:y,max:big?170:56,life:big?0.8:0.34,t:0,big:big}); }
   function edgeSteer(o){
-    if(o.x<box.x0+90) return 0;
-    if(o.x>box.x1-90) return Math.PI;
-    if(o.y<box.y0+70) return Math.PI/2;
-    if(o.y>box.y1-70) return -Math.PI/2;
+    if(o.x<box.x0+EDGE_X) return 0;
+    if(o.x>box.x1-EDGE_X) return Math.PI;
+    if(o.y<box.y0+EDGE_Y) return Math.PI/2;
+    if(o.y>box.y1-EDGE_Y) return -Math.PI/2;
     return null;
   }
 
@@ -193,12 +198,12 @@
   for(var e=0;e<9;e++){
     EN.push({x:box.x0+ (W-2*M)*((e%3)+0.5)/3 + (Math.random()-0.5)*90,
              y:box.y0+ (box.y1-box.y0)*(Math.floor(e/3)+0.5)/3 + (Math.random()-0.5)*50,
-             a:Math.random()*6.283, v:250+Math.random()*110, alive:true, turn:2.6+Math.random()*0.9});
+             a:Math.random()*6.283, v:(250+Math.random()*110)*S, alive:true, turn:2.6+Math.random()*0.9});
   }
   /* three friendlies, three kills each: friendly i owns enemies i*3..i*3+2 */
   FR=gs.map(function(g,i){
     var st=[{x:box.x0+10,y:box.y1-20,a:-0.6},{x:box.x1-10,y:box.y1-40,a:Math.PI+0.6},{x:W*0.5,y:box.y1-10,a:-Math.PI/2}][i];
-    return {g:g,i:i,x:st.x,y:st.y,a:st.a,v:470,bank:0,kills:0,
+    return {g:g,i:i,x:st.x,y:st.y,a:st.a,v:470*S,bank:0,kills:0,
             queue:[i*3,i*3+1,i*3+2], gun:1.6+i*0.5, burst:0, mis:2.6+i*1.1, land:null};
   });
   function target(f){ while(f.queue.length && !EN[f.queue[0]].alive) f.queue.shift(); return f.queue.length?EN[f.queue[0]]:null; }
@@ -247,7 +252,7 @@
         var k=Math.min(1,(ts-landStart-f.i*450)/LAND_MS); if(k<0) k=0;
         var e2=1-Math.pow(1-k,3), h=home[f.i], L=f.land;
         /* run in from the left of the resting slot, levelling as it arrives */
-        var ax=h.x-300+f.i*40, ay=h.y;
+        var ax=h.x-300*S+f.i*40*S, ay=h.y;
         var px, py;
         if(e2<0.6){ var q=e2/0.6; px=L.x0+(ax-L.x0)*q; py=L.y0+(ay-L.y0)*q; }
         else { var q2=(e2-0.6)/0.4; px=ax+(h.x-ax)*q2; py=ay+(h.y-ay)*q2; }
@@ -265,16 +270,16 @@
       }
       var tu=wrap(want-f.a), r=3.8*dt, ap=Math.max(-r,Math.min(r,tu));
       f.a+=ap; f.bank=Math.max(-0.8,Math.min(0.8,tu*1.1));
-      var hard=Math.abs(ap)/r; f.v=Math.max(330,Math.min(560,f.v+(hard>0.75?-420:300)*dt));
+      var hard=Math.abs(ap)/r; f.v=Math.max(330*S,Math.min(560*S,f.v+(hard>0.75?-420:300)*dt*S));
       f.x+=Math.cos(f.a)*f.v*dt; f.y+=Math.sin(f.a)*f.v*dt; clamp(f);
 
       if(t){
         var dx=t.x-f.x, dy=t.y-f.y, d=Math.hypot(dx,dy), aim=Math.abs(wrap(Math.atan2(dy,dx)-f.a));
         f.gun-=dt;
-        if(f.burst>0){ f.burst-=dt; if(f.burst%0.055<dt) shots.push({x:f.x,y:f.y,a:f.a+(Math.random()-0.5)*0.16,v:1250,life:0.5,gun:true,own:f.i}); }
-        else if(f.gun<=0 && aim<0.055 && d<190){ f.burst=0.30; f.gun=2.4+Math.random()*1.6; }
+        if(f.burst>0){ f.burst-=dt; if(f.burst%0.055<dt) shots.push({x:f.x,y:f.y,a:f.a+(Math.random()-0.5)*0.16,v:1250*S,life:0.5,gun:true,own:f.i}); }
+        else if(f.gun<=0 && aim<0.055 && d<190*S){ f.burst=0.30; f.gun=2.4+Math.random()*1.6; }
         f.mis-=dt;
-        if(f.mis<=0 && d>130 && d<620){ shots.push({x:f.x,y:f.y,a:f.a,v:600,life:2.1,trk:f.queue[0],turn:1.9,own:f.i}); f.mis=4.4+Math.random()*2.6; }
+        if(f.mis<=0 && d>130*S && d<620*S){ shots.push({x:f.x,y:f.y,a:f.a,v:600*S,life:2.1,trk:f.queue[0],turn:1.9,own:f.i,v2:600*S}); f.mis=4.4+Math.random()*2.6; }
       }
       f.g.style.transform='translate('+(f.x-home[f.i].x)+'px,'+(f.y-home[f.i].y)+'px) rotate('+(f.a+f.bank)+'rad)';
     });
@@ -286,7 +291,7 @@
         if(!tf || !tf.alive){ boom(s.x,s.y,false); shots.splice(i,1); continue; }
         var wa=Math.atan2(tf.y-s.y,tf.x-s.x), tu2=wrap(wa-s.a), rr=s.turn*dt;
         s.a+=Math.max(-rr,Math.min(rr,tu2));
-        if(Math.hypot(tf.x-s.x,tf.y-s.y)<24){
+        if(Math.hypot(tf.x-s.x,tf.y-s.y)<24*Math.max(S,0.7)){
           tf.alive=false; boom(tf.x,tf.y,true);
           var own=FR[s.own]; own.kills++; if(own.queue[0]===s.trk) own.queue.shift();
           shots.splice(i,1); continue;
@@ -296,7 +301,7 @@
            stays three each - stray hits used to credit whoever was shooting and it came out 5/3/1 */
         var own4=FR[s.own];
         for(var qi2=0;qi2<own4.queue.length;qi2++){ var k2=own4.queue[qi2], o2=EN[k2];
-          if(o2 && o2.alive && Math.hypot(o2.x-s.x,o2.y-s.y)<7){
+          if(o2 && o2.alive && Math.hypot(o2.x-s.x,o2.y-s.y)<7/Math.max(S,0.5)){
             o2.alive=false; boom(o2.x,o2.y,true);
             own4.kills++; own4.queue.splice(qi2,1);
             s.life=-1; break; }
