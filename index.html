@@ -85,6 +85,10 @@
   .wordmark .g{display:inline-block;will-change:transform}
   .wordmark.flying .g{opacity:0}
   @media (prefers-reduced-motion:reduce){ .wordmark.flying .g{opacity:1} }
+
+  #dogfight{position:absolute;inset:0;pointer-events:none;z-index:2}
+  .wordmark{z-index:3}
+  .mark{z-index:3}
   .contact a:hover{border-bottom-color:var(--paper)}
 </style>
 </head>
@@ -92,6 +96,7 @@
   <div class="hero">
     <video autoplay muted loop playsinline preload="metadata" src="hero.mp4"></video>
     <div class="scrim"></div>
+    <canvas id="dogfight"></canvas>
     <img class="mark" src="logo-white.png" alt="144">
     <div class="wordmark" id="wm" aria-label="144"><span class="g">1</span><span class="g">4</span><span class="g">4</span></div>
   </div>
@@ -140,43 +145,172 @@
     <p class="words">Blessed be the LORD, my rock, who trains my hands for war, and my fingers for battle.</p>
   </footer>
 
+
+
 <script>
-/* 17 Sept 2026: on load the 1, the 4 and the 4 come in from three different places, dogfight for
-   about eight seconds, then settle into their normal position under the logo. Web Animations API,
-   so every glyph finishes at transform:none - the resting layout is the CSS, not the script. */
+/* 17 Sept 2026, his brief: the 1, the 4 and the 4 come in from all sides, chase and separate high up
+   above the logo, fire bullets and tracking missiles that miss and explode, then settle under the
+   logo. Longer than eight seconds is fine - he asked for a proper dogfight.
+
+   Architecture: the three numerals stay DOM elements, so the typography and the RESTING position are
+   the stylesheet's, not the script's - the settle animates to each glyph's real measured rect and
+   then clears itself. Ordnance and explosions are canvas, so firing costs no DOM churn. */
 (function(){
-  var wm = document.getElementById('wm');
-  if (!wm) return;
-  var gs = wm.querySelectorAll('.g');
-  if (!gs.length) return;
+  var wm = document.getElementById('wm'), hero = document.querySelector('.hero'),
+      cv = document.getElementById('dogfight');
+  if (!wm || !hero || !cv) return;
+  var gs = [].slice.call(wm.querySelectorAll('.g'));
+  if (gs.length !== 3) return;
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-  var vw = Math.max(window.innerWidth, 320), vh = Math.max(window.innerHeight, 480);
-  wm.classList.add('flying');
+  var FIGHT_MS = 15000, FORM_MS = 2000, FIGHT_SCALE = 2.1, ctx = cv.getContext('2d'), dpr = 1;
+  var W = 0, H = 0, home = [], fighters = [], shots = [], booms = [];
 
-  // three entry corners, then a set of darting waypoints each, then home
-  var routes = [
-    [[-vw*0.55,-vh*0.42,-22,.55],[ vw*0.20,-vh*0.30, 16,.8],[-vw*0.26, vh*0.16,-14,1],
-     [ vw*0.12,-vh*0.10, 10,1],[-vw*0.06, vh*0.05, -6,1]],
-    [[ vw*0.60,-vh*0.30, 26,.55],[-vw*0.22, vh*0.24,-20,.85],[ vw*0.24,-vh*0.18, 14,1],
-     [-vw*0.10, vh*0.08, -8,1],[ vw*0.05,-vh*0.04,  5,1]],
-    [[ 0, vh*0.62, -30,.55],[ vw*0.28, vh*0.10, 22,.85],[-vw*0.30,-vh*0.20,-16,1],
-     [ vw*0.08, vh*0.12,  9,1],[-vw*0.04,-vh*0.05, -5,1]]
-  ];
+  function sizeCanvas(){
+    var r = hero.getBoundingClientRect();
+    W = r.width; H = r.height;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = W * dpr; cv.height = H * dpr;
+    cv.style.width = W + 'px'; cv.style.height = H + 'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
 
-  gs.forEach(function(g, i){
-    var r = routes[i % routes.length];
-    var frames = [{transform:'translate('+r[0][0]+'px,'+r[0][1]+'px) rotate('+r[0][2]+'deg) scale('+r[0][3]+')', opacity:0, offset:0},
-                  {opacity:1, offset:0.06}];
-    r.forEach(function(p, n){
-      frames.push({transform:'translate('+p[0]+'px,'+p[1]+'px) rotate('+p[2]+'deg) scale('+p[3]+')',
-                   opacity:1, offset:0.10 + n*0.17});
+  /* each glyph's resting centre, in hero coordinates, measured BEFORE anything moves */
+  function measure(){
+    var hr = hero.getBoundingClientRect();
+    home = gs.map(function(g){
+      var r = g.getBoundingClientRect();
+      return {x: r.left - hr.left + r.width/2, y: r.top - hr.top + r.height/2};
     });
-    frames.push({transform:'translate(0,0) rotate(0deg) scale(1)', opacity:1, offset:1});
-    var a = g.animate(frames, {duration:8000, delay:i*140, easing:'cubic-bezier(.36,.06,.24,1)', fill:'both'});
-    a.finished.then(function(){ g.style.transform=''; g.style.opacity=''; wm.classList.remove('flying'); })
-             .catch(function(){ wm.classList.remove('flying'); });
+  }
+
+  function place(g, i, x, y, rot, sc){
+    var h = home[i];
+    g.style.transform = 'translate(' + (x-h.x) + 'px,' + (y-h.y) + 'px) rotate(' + rot + 'rad) scale(' + sc + ')';
+  }
+
+  sizeCanvas(); measure();
+
+  /* the fight happens HIGH: a band above the logo, upper-middle of the hero */
+  var box = {x0: W*0.10, x1: W*0.90, y0: H*0.06, y1: H*0.46};
+
+  /* in from all different sides */
+  var entries = [
+    {x: -W*0.15,      y: H*0.10, a: 0.35},
+    {x: W*1.15,       y: H*0.34, a: Math.PI - 0.30},
+    {x: W*0.52,       y: -H*0.20, a: Math.PI/2 + 0.15}
+  ];
+  fighters = gs.map(function(g,i){
+    var e = entries[i];
+    return {g:g, i:i, x:e.x, y:e.y, a:e.a, v: 300 + i*28, bank:0,
+            cool: 0.7 + i*0.5, mcool: 2.2 + i*1.7, target: (i+1)%3, swap: 2.4 + i*1.1};
   });
+
+  function wrapAngle(d){ while(d> Math.PI) d-=2*Math.PI; while(d<-Math.PI) d+=2*Math.PI; return d; }
+
+  function fire(f, tracking){
+    var t = fighters[f.target];
+    shots.push({x:f.x, y:f.y, a:f.a, v: tracking? 430 : 920, life: tracking? 2.4 : 1.0,
+                track: tracking, target: f.target, turn: tracking? 1.9 : 0, w: tracking? 3.6 : 2.6});
+  }
+  function boom(x,y,big){ booms.push({x:x,y:y,r: big?8:4, max: big?104:46, life: big?0.7:0.42, t:0}); }
+
+  var t0 = null, phase = 'fight', formFrom = null;
+
+  function step(ts){
+    if (t0 === null) t0 = ts;
+    var el = ts - t0, dt = 1/60;
+    ctx.clearRect(0,0,W,H);
+
+    if (phase === 'fight'){
+      fighters.forEach(function(f){
+        f.swap -= dt;
+        if (f.swap <= 0){ f.target = (f.target + 1 + Math.floor(Math.random()*2)) % 3;
+                          if (f.target === f.i) f.target = (f.i+1)%3; f.swap = 1.8 + Math.random()*2.2; }
+        var t = fighters[f.target];
+        /* pursue, but break off when very close so they chase and SEPARATE */
+        var dx = t.x - f.x, dy = t.y - f.y, d = Math.hypot(dx,dy);
+        var want = Math.atan2(dy,dx);
+        if (d < 120) want += Math.PI * 0.75;            /* break away */
+        /* stay inside the high band */
+        if (f.x < box.x0) want = 0; if (f.x > box.x1) want = Math.PI;
+        if (f.y < box.y0) want = Math.PI/2; if (f.y > box.y1) want = -Math.PI/2;
+        var turn = wrapAngle(want - f.a);
+        var rate = 2.6 * dt;
+        f.a += Math.max(-rate, Math.min(rate, turn));
+        f.bank = Math.max(-0.6, Math.min(0.6, turn)) * 0.8;
+        f.x += Math.cos(f.a) * f.v * dt;
+        f.y += Math.sin(f.a) * f.v * dt;
+
+        f.cool -= dt; f.mcool -= dt;
+        var aim = Math.abs(wrapAngle(Math.atan2(dy,dx) - f.a));
+        if (f.cool <= 0 && aim < 0.24 && d < 420){ fire(f,false); f.cool = 0.16; }
+        if (f.mcool <= 0 && d < 560){ fire(f,true); f.mcool = 3.4 + Math.random()*2.5; }
+
+        place(f.g, f.i, f.x, f.y, f.a + f.bank, FIGHT_SCALE);
+      });
+
+      for (var i=shots.length-1;i>=0;i--){
+        var s = shots[i]; s.life -= dt;
+        if (s.track){
+          var tf = fighters[s.target];
+          var wa = Math.atan2(tf.y - s.y, tf.x - s.x);
+          var tu = wrapAngle(wa - s.a), r = s.turn * dt;
+          s.a += Math.max(-r, Math.min(r, tu));      /* limited turn, so it MISSES */
+        }
+        s.x += Math.cos(s.a)*s.v*dt; s.y += Math.sin(s.a)*s.v*dt;
+        if (s.life <= 0 || s.x<-60 || s.x>W+60 || s.y<-60 || s.y>H+60){
+          boom(s.x, s.y, s.track); shots.splice(i,1); continue;
+        }
+        ctx.globalAlpha = s.track ? 0.95 : 0.8;
+        ctx.strokeStyle = s.track ? '#ffd9a8' : '#fff3e0';
+        ctx.lineWidth = s.w;
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y);
+        ctx.lineTo(s.x - Math.cos(s.a)*(s.track?26:20), s.y - Math.sin(s.a)*(s.track?26:20));
+        ctx.stroke();
+        if (s.track){ ctx.globalAlpha=0.30; ctx.lineWidth=2.2; ctx.beginPath();
+          ctx.moveTo(s.x - Math.cos(s.a)*26, s.y - Math.sin(s.a)*26);
+          ctx.lineTo(s.x - Math.cos(s.a)*88, s.y - Math.sin(s.a)*88); ctx.stroke(); }
+      }
+
+      if (el > FIGHT_MS){ phase = 'form'; t0 = ts;
+        formFrom = fighters.map(function(f){ return {x:f.x,y:f.y,a:f.a+f.bank}; });
+        shots.length = 0;
+      }
+    } else if (phase === 'form'){
+      var k = Math.min(1, el / FORM_MS), e = 1 - Math.pow(1-k, 3);
+      var sc = FIGHT_SCALE + (1 - FIGHT_SCALE) * e;
+      fighters.forEach(function(f){
+        var a = formFrom[f.i], h = home[f.i];
+        place(f.g, f.i, a.x + (h.x-a.x)*e, a.y + (h.y-a.y)*e, a.a*(1-e), sc);
+      });
+      if (k >= 1){
+        gs.forEach(function(g){ g.style.transform=''; g.style.textShadow=''; });
+        cv.remove();
+        return;
+      }
+    }
+
+    for (var b=booms.length-1;b>=0;b--){
+      var o = booms[b]; o.t += dt;
+      var p = o.t / o.life;
+      if (p >= 1){ booms.splice(b,1); continue; }
+      ctx.globalAlpha = (1-p) * 0.9;
+      ctx.strokeStyle = '#ffd2a0'; ctx.lineWidth = 3.4*(1-p)+0.8;
+      ctx.beginPath(); ctx.arc(o.x, o.y, o.r + (o.max-o.r)*p, 0, 6.283); ctx.stroke();
+      ctx.globalAlpha = (1-p) * 0.5;
+      ctx.beginPath(); ctx.arc(o.x, o.y, (o.max*0.35)*(1-p), 0, 6.283);
+      ctx.fillStyle = '#fff1dd'; ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(step);
+  }
+
+  window.addEventListener('resize', function(){ sizeCanvas(); measure(); });
+  gs.forEach(function(g){ g.style.textShadow='0 0 20px rgba(0,0,0,.95), 0 2px 6px rgba(0,0,0,.9)'; });
+  fighters.forEach(function(f){ place(f.g, f.i, f.x, f.y, f.a, FIGHT_SCALE); });
+  requestAnimationFrame(step);
 })();
 </script>
 </body>
