@@ -2,227 +2,131 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="robots" content="noindex, nofollow">
-<title>144 — concept</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>144</title>
 <style>
-  :root{
-    --ink:#0b0d0e; --ink-2:#101314; --paper:#f4f2ee; --muted:#8b8f93;
-    --line:#1e2326; --accent:#c8b88a;
-    --foot:calc(clamp(24px,4vh,48px) + env(safe-area-inset-bottom));
-    --pad:clamp(20px,5vw,64px);
-  }
+  :root{ --ink:#0d0f10; --paper:#f4f2ee; --muted:#8b8f93; --line:#23282b;
+         --foot:calc(clamp(24px,4vh,48px) + env(safe-area-inset-bottom)); }
   *{box-sizing:border-box}
-  html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
-  body{margin:0;background:var(--ink);color:var(--paper);
-    font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;
-    overflow-x:hidden}
-  section{position:relative}
-
-  /* ── 1 · sticky rail ─────────────────────────────────────────── */
-  .rail{position:fixed;inset:0 0 auto 0;z-index:40;display:flex;align-items:center;gap:14px;
-    padding:14px var(--pad);background:linear-gradient(180deg,rgba(11,13,14,.92),rgba(11,13,14,0));
-    transform:translateY(-102%);transition:transform .45s cubic-bezier(.2,.7,.2,1)}
-  .rail.on{transform:none}
-  .rail img{width:22px;opacity:.95}
-  .rail b{font-weight:600;font-size:13px;letter-spacing:.44em;text-indent:.44em}
-  .rail .spacer{flex:1}
-  .rail a{color:var(--muted);text-decoration:none;font-size:11px;letter-spacing:.22em;
-    text-transform:uppercase}
-  .rail a:hover{color:var(--paper)}
-
-  /* ── 2 · hero, with the lockup opening on load ──────────────── */
-  .hero{height:100svh;min-height:540px;overflow:hidden}
+  html{-webkit-text-size-adjust:100%}
+  html,body{margin:0;padding:0;background:var(--ink);color:var(--paper);
+    font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .hero{position:relative;height:100svh;min-height:520px;overflow:hidden}
   .hero video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
   .scrim{position:absolute;inset:0;background:
-    linear-gradient(180deg,rgba(11,13,14,.40) 0%,rgba(11,13,14,.06) 38%,rgba(11,13,14,.82) 100%)}
-  .grain{position:absolute;inset:0;opacity:.055;pointer-events:none;mix-blend-mode:overlay;
-    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>")}
-  .lockup{position:absolute;left:0;right:0;bottom:var(--foot);text-align:center}
-  .lockup img{width:clamp(74px,8.4vw,104px);filter:drop-shadow(0 3px 20px rgba(0,0,0,.65));
-    opacity:0;transform:translateY(10px);animation:rise .9s .15s cubic-bezier(.2,.7,.2,1) forwards}
-  .lockup .n{margin-top:clamp(12px,1.6vw,20px);font-size:clamp(26px,3.4vw,40px);font-weight:600;
-    text-transform:uppercase;text-shadow:0 2px 18px rgba(0,0,0,.75);
-    letter-spacing:.18em;text-indent:.18em;opacity:0;
-    animation:rise .9s .35s cubic-bezier(.2,.7,.2,1) forwards, open 1.5s .5s cubic-bezier(.2,.7,.2,1) forwards}
-  @keyframes rise{to{opacity:1;transform:none}}
-  @keyframes open{to{letter-spacing:.62em;text-indent:.62em}}
-  .cue{position:absolute;left:50%;bottom:calc(var(--foot) - 4px);width:1px;height:38px;
-    background:linear-gradient(180deg,rgba(244,242,238,0),rgba(244,242,238,.55));
-    transform:translateX(-50%) translateY(46px);animation:cue 2.6s 1.4s ease-in-out infinite}
-  @keyframes cue{0%,100%{opacity:0;transform:translateX(-50%) translateY(38px)}
-                 50%{opacity:1;transform:translateX(-50%) translateY(50px)}}
+     linear-gradient(180deg,rgba(13,15,16,.34) 0%,rgba(13,15,16,.10) 40%,rgba(13,15,16,.62) 100%)}
 
-  /* ── 3 · the blurb ──────────────────────────────────────────── */
-  .blurb{padding:clamp(88px,14vh,190px) var(--pad);max-width:64ch;margin:0 auto;text-align:center}
-  .blurb p{margin:0;font-size:clamp(19px,2.5vw,30px);line-height:1.5;letter-spacing:-.01em;
-    font-weight:300}
-  .blurb .lead{color:var(--paper)}
-  .blurb .sub{margin-top:1.2em;font-size:clamp(14px,1.5vw,17px);line-height:1.75;color:var(--muted);
-    font-weight:400}
+  /* logo: sits above the wordmark from the moment the page loads */
+  .mark{position:absolute;left:50%;bottom:calc(var(--foot) + clamp(46px,5.4vw,64px));
+    width:clamp(74px,8.4vw,104px);pointer-events:none;transform:translateX(-50%);
+    filter:drop-shadow(0 3px 20px rgba(0,0,0,.65))}
 
-  /* ── 4 · capability grid ────────────────────────────────────── */
-  .grid{display:grid;gap:1px;background:var(--line);border-block:1px solid var(--line)}
-  @media(min-width:760px){.grid{grid-template-columns:repeat(3,1fr)}}
-  .cell{background:var(--ink-2);padding:clamp(30px,4.5vw,58px) clamp(22px,3vw,40px);
-    position:relative;overflow:hidden;transition:background .4s}
-  .cell:hover{background:#13171a}
-  .cell .idx{font-size:11px;letter-spacing:.3em;color:var(--accent);opacity:.75}
-  .cell h3{margin:.9em 0 .5em;font-size:clamp(16px,1.9vw,21px);font-weight:500;letter-spacing:.01em}
-  .cell p{margin:0;font-size:14px;line-height:1.7;color:var(--muted)}
-  .cell::after{content:"";position:absolute;left:0;bottom:0;height:1px;width:0;
-    background:var(--accent);transition:width .55s cubic-bezier(.2,.7,.2,1)}
-  .cell:hover::after{width:100%}
+  .wordmark{position:absolute;left:0;right:0;bottom:var(--foot);text-align:center;
+    font-size:clamp(26px,3.4vw,40px);letter-spacing:.62em;text-transform:uppercase;
+    font-weight:600;color:var(--paper);text-shadow:0 2px 18px rgba(0,0,0,.75);
+    text-indent:.62em}   /* text-indent = letter-spacing, so the trailing space does not push it left */
 
-  /* ── 5 · figures that count up ──────────────────────────────── */
-  .figs{display:flex;flex-wrap:wrap;justify-content:center;gap:clamp(30px,7vw,110px);
-    padding:clamp(66px,10vh,120px) var(--pad);text-align:center}
-  .fig .v{font-size:clamp(34px,5.5vw,62px);font-weight:200;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-  .fig .k{margin-top:.7em;font-size:10.5px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted)}
-
-  /* ── 6 · pinned quote over footage ──────────────────────────── */
-  .plate{height:74svh;min-height:420px;display:grid;place-items:center;overflow:hidden}
-  .plate video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.32}
-  .plate .q{position:relative;max-width:22ch;text-align:center;font-size:clamp(23px,4vw,46px);
-    font-weight:300;line-height:1.28;letter-spacing:-.015em;padding:0 var(--pad)}
-
-  /* ── 7 · contact ────────────────────────────────────────────── */
-  .contact{padding:clamp(76px,11vw,150px) var(--pad);text-align:center;border-top:1px solid var(--line)}
-  .contact a{display:inline-block;color:var(--paper);text-decoration:none;
-    border-bottom:1px solid #39413f;font-size:clamp(16px,2vw,22px);letter-spacing:.24em;
-    text-transform:uppercase;font-weight:500;padding:.6em .4em .35em;min-height:44px;
-    transition:border-color .3s}
-  .contact a:hover{border-bottom-color:var(--accent)}
-
-  /* ── 8 · the verse, quiet at the foot ───────────────────────── */
-  .verse{max-width:46ch;margin:0 auto;padding:0 var(--pad) clamp(52px,8vw,92px);text-align:center;
-    color:var(--muted);opacity:.42}
+  /* the verse the company is named after - small, quiet, below the contact line */
+  .verse{max-width:46ch;margin:0 auto;padding:0 clamp(20px,4vw,48px) clamp(44px,7vw,80px);
+    text-align:center;color:var(--muted);opacity:.42}
   .verse .ref{margin:0 0 .75em;font-size:10px;letter-spacing:.34em;text-transform:uppercase}
-  .verse .words{margin:0;font-size:12px;line-height:1.75;font-style:italic}
+  .verse .words{margin:0;font-size:12px;line-height:1.75;font-style:italic;letter-spacing:.02em}
 
-  /* reveal-on-scroll, used by 3/4/5/6 */
-  .up{opacity:0;transform:translateY(22px);transition:opacity .8s,transform .8s cubic-bezier(.2,.7,.2,1)}
-  .up.in{opacity:1;transform:none}
+  .contact{padding:clamp(64px,10vw,140px) clamp(20px,4vw,48px);text-align:center;
+    border-top:1px solid var(--line)}
+  .contact a{display:inline-block;color:var(--paper);text-decoration:none;
+    border-bottom:1px solid #3a4145;font-size:clamp(16px,2vw,22px);letter-spacing:.24em;
+    text-transform:uppercase;font-weight:500;padding:.6em .4em .35em;min-height:44px}
 
-  /* ── the review panel — not part of the design ──────────────── */
-  .rev{position:fixed;right:14px;bottom:14px;z-index:60;font-size:12px}
-  .rev button{background:#1b2023;color:var(--paper);border:1px solid #2b3236;border-radius:999px;
-    padding:10px 16px;font:inherit;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
-  .rev ul{display:none;list-style:none;margin:10px 0 0;padding:14px;max-width:290px;
-    background:#14181a;border:1px solid #2b3236;border-radius:12px;line-height:1.55}
-  .rev.open ul{display:block}
-  .rev li{padding:5px 0;color:var(--muted)}
-  .rev li b{color:var(--paper);font-weight:600}
-  .rev .note{margin-top:10px;padding-top:10px;border-top:1px solid #2b3236;color:#6f7478;font-size:11px}
-
-  @media (prefers-reduced-motion:reduce){
-    .hero video,.plate video{display:none}
-    .up{opacity:1;transform:none}
-    .lockup img,.lockup .n{animation:none;opacity:1;transform:none;letter-spacing:.62em;text-indent:.62em}
-    .cue{display:none}
+  @media (max-width:520px){
+    .wordmark{letter-spacing:.5em;text-indent:.5em}   /* .62em overflows a narrow screen */
+    .verse .words{font-size:11.5px}
   }
-  @media (max-width:520px){ .lockup .n{letter-spacing:.5em;text-indent:.5em} @keyframes open{to{letter-spacing:.5em;text-indent:.5em}} }
+  @media (prefers-reduced-motion:reduce){ .hero video{display:none} }
+
+  /* ---- what we do: a black band under the hero. 17 Sept 2026 ---- */
+  .band{background:#000;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+    padding:clamp(56px,8vw,112px) clamp(20px,4vw,48px)}
+  .band .inner{max-width:920px;margin:0 auto;text-align:center}
+  .band h1{margin:0;font-size:clamp(17px,2.3vw,26px);letter-spacing:.2em;text-transform:uppercase;
+    font-weight:500;line-height:1.5;color:var(--paper)}
+  .band .blurb{margin:clamp(18px,2.4vw,28px) auto 0;max-width:60ch;color:var(--muted);
+    font-size:clamp(13px,1.5vw,15px);line-height:1.8}
+
+  .aspects{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);
+    border-bottom:1px solid var(--line)}
+  .aspect{background:var(--ink);padding:clamp(34px,5vw,64px) clamp(18px,2.6vw,34px)}
+  .aspect .n{margin:0 0 1.1em;font-size:10px;letter-spacing:.34em;text-transform:uppercase;
+    color:var(--muted);opacity:.7}
+  .aspect h2{margin:0 0 .7em;font-size:clamp(14px,1.7vw,18px);letter-spacing:.1em;
+    text-transform:uppercase;font-weight:500;line-height:1.45}
+  .aspect p{margin:0;color:var(--muted);font-size:clamp(12.5px,1.4vw,14px);line-height:1.75}
+
+  .film{padding:clamp(48px,7vw,96px) clamp(20px,4vw,48px) clamp(56px,8vw,112px)}
+  .film .frame{max-width:1180px;margin:0 auto;border:1px solid var(--line);background:#000}
+  .film video{display:block;width:100%;height:auto}
+  .film .cap{max-width:1180px;margin:clamp(14px,1.8vw,20px) auto 0;color:var(--muted);
+    font-size:10px;letter-spacing:.3em;text-transform:uppercase;text-align:center}
+
+  @media (max-width:760px){
+    .aspects{grid-template-columns:1fr}
+    .band h1{letter-spacing:.14em}
+  }
+  .contact a:hover{border-bottom-color:var(--paper)}
 </style>
 </head>
 <body>
-
-<div class="rail" id="rail">
-  <img src="logo-white.png" alt=""><b>144</b>
-  <span class="spacer"></span>
-  <a href="#contact">Contact</a>
-</div>
-
-<section class="hero">
-  <video autoplay muted loop playsinline preload="metadata" src="hero.mp4"></video>
-  <div class="scrim"></div><div class="grain"></div>
-  <div class="lockup">
-    <img src="logo-white.png" alt="144">
-    <div class="n">144</div>
+  <div class="hero">
+    <video autoplay muted loop playsinline preload="metadata" src="hero.mp4"></video>
+    <div class="scrim"></div>
+    <img class="mark" src="logo-white.png" alt="144">
+    <div class="wordmark">144</div>
   </div>
-  <div class="cue"></div>
-</section>
 
-<section class="blurb up">
-  <p class="lead">[SAMPLE] 144 builds and fields autonomous systems for people who operate where the
-    margin for error is nothing.</p>
-  <p class="sub">[SAMPLE COPY — placeholder until you write the real thing.] Two or three lines here
-    saying what the company actually does, who it does it for, and why it exists. This is the only
-    body copy on the page; everything else is image, figure and motion.</p>
-</section>
 
-<section class="grid">
-  <div class="cell up"><div class="idx">01</div><h3>[Sample capability]</h3>
-    <p>One line of placeholder describing the first thing you do.</p></div>
-  <div class="cell up"><div class="idx">02</div><h3>[Sample capability]</h3>
-    <p>One line of placeholder describing the second thing you do.</p></div>
-  <div class="cell up"><div class="idx">03</div><h3>[Sample capability]</h3>
-    <p>One line of placeholder describing the third thing you do.</p></div>
-</section>
+  <section class="band">
+    <div class="inner">
+      <h1>Specialising in unmanned vehicle battery systems</h1>
+      <p class="blurb">PLACEHOLDER - one paragraph on what 144 does goes here.</p>
+    </div>
+  </section>
 
-<section class="figs up">
-  <div class="fig"><div class="v" data-to="24" data-suffix="/7">0</div><div class="k">[sample figure]</div></div>
-  <div class="fig"><div class="v" data-to="12">0</div><div class="k">[sample figure]</div></div>
-  <div class="fig"><div class="v" data-to="99" data-suffix="%">0</div><div class="k">[sample figure]</div></div>
-</section>
+  <section class="aspects">
+    <div class="aspect">
+      <p class="n">01</p>
+      <h2>Field swap, not recharge</h2>
+      <p>The cell opens in the field. A fresh aluminium plate and new electrolyte, and it runs
+         again, with no charging and no power source. <em>Draft copy.</em></p>
+    </div>
+    <div class="aspect">
+      <p class="n">02</p>
+      <h2>Built for unmanned systems</h2>
+      <p>Drones, ground controllers and munition racks, powered from one common cell across the
+         platforms a unit already carries. <em>Draft copy.</em></p>
+    </div>
+    <div class="aspect">
+      <p class="n">03</p>
+      <h2>Deployed forward</h2>
+      <p>Stored by the pallet, carried by hand, and swapped where the work is: vehicle, trench,
+         helicopter, boat. <em>Draft copy.</em></p>
+    </div>
+  </section>
 
-<section class="plate">
-  <video autoplay muted loop playsinline preload="none" src="hero.mp4"></video>
-  <div class="scrim"></div>
-  <p class="q up">[SAMPLE] A short line with weight behind it.</p>
-</section>
+  <section class="film">
+    <div class="frame">
+      <video controls preload="metadata" playsinline poster="film-poster.jpg" src="film.mp4"></video>
+    </div>
+    <p class="cap">Deployment</p>
+  </section>
 
-<section class="contact" id="contact">
-  <a href="mailto:Jesse@psalm144.co.uk">Contact</a>
-</section>
+  <section class="contact">
+    <a href="mailto:Jesse@psalm144.co.uk">Contact</a>
+  </section>
 
-<footer class="verse">
-  <p class="ref">Psalm 144:1</p>
-  <p class="words">Blessed be the LORD, my rock, who trains my hands for war, and my fingers for battle.</p>
-</footer>
-
-<div class="rev" id="rev">
-  <button onclick="document.getElementById('rev').classList.toggle('open')">Concept notes</button>
-  <ul>
-    <li><b>1 · Sticky rail</b> — appears once you leave the hero, mark + 144 + contact.</li>
-    <li><b>2 · Lockup opens on load</b> — the mark rises, then the 144 tracks apart. Film grain over the video.</li>
-    <li><b>3 · The blurb</b> — the one piece of writing, large and centred.</li>
-    <li><b>4 · Capability grid</b> — three cells, gold rule draws across on hover.</li>
-    <li><b>5 · Figures</b> — count up when they scroll into view.</li>
-    <li><b>6 · Pinned plate</b> — footage dimmed right back behind a single line.</li>
-    <li><b>7 · Contact</b> — as live, with a gold underline on hover.</li>
-    <li><b>8 · The verse</b> — unchanged, quiet at the foot.</li>
-    <div class="note">Every word marked [SAMPLE] is placeholder. Tell me which numbers you want and
-      I will put those on the live site.</div>
-  </ul>
-</div>
-
-<script>
-  // rail appears after the hero
-  const rail = document.getElementById('rail');
-  addEventListener('scroll', () => rail.classList.toggle('on', scrollY > innerHeight * .72), {passive:true});
-
-  // reveal on scroll
-  const io = new IntersectionObserver((es) => es.forEach(e => {
-    if (!e.isIntersecting) return;
-    e.target.classList.add('in');
-    io.unobserve(e.target);
-    if (e.target.classList.contains('figs')) count();
-  }), {threshold:.22});
-  document.querySelectorAll('.up').forEach(el => io.observe(el));
-
-  // figures count up once
-  let counted = false;
-  function count(){
-    if (counted) return; counted = true;
-    document.querySelectorAll('.fig .v').forEach(el => {
-      const to = +el.dataset.to, sfx = el.dataset.suffix || '', t0 = performance.now();
-      (function step(t){
-        const p = Math.min((t - t0) / 1100, 1), e = 1 - Math.pow(1 - p, 3);
-        el.textContent = Math.round(to * e) + sfx;
-        if (p < 1) requestAnimationFrame(step);
-      })(t0);
-    });
-  }
-</script>
+  <footer class="verse">
+    <p class="ref">Psalm 144:1</p>
+    <p class="words">Blessed be the LORD, my rock, who trains my hands for war, and my fingers for battle.</p>
+  </footer>
 </body>
 </html>
+
